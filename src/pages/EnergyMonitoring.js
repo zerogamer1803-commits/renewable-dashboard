@@ -2,16 +2,23 @@ import React, { useState, useEffect } from 'react';
 import ChartCard from '../components/ChartCard';
 import { apiFetch } from '../api';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts';
 import './EnergyMonitoring.css';
 
 const PIE_COLORS = ['#f59e0b', '#3b82f6'];
-
-/* ─────────────────────────────────────────
-   REUSABLE PIECES
-───────────────────────────────────────── */
 
 function StatusPill({ color, children }) {
   return (
@@ -93,16 +100,18 @@ function CustomTooltip({ active, payload, label }) {
 
           <span>{p.name}:</span>
 
-          <strong>{Number(p.value).toFixed(3)} kWh</strong>
+          <strong>
+            {Number(p.value).toFixed(4)} kWh
+          </strong>
         </div>
       ))}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────
-   DEFAULTS
-───────────────────────────────────────── */
+/* =========================================================
+   DEFAULT DATA
+========================================================= */
 
 const DEFAULT_SOURCE = {
   source: '',
@@ -115,25 +124,21 @@ const DEFAULT_SOURCE = {
   peak_power: 0,
 };
 
-/* ─────────────────────────────────────────
-   SOLAR CALCULATION
-───────────────────────────────────────── */
+/* =========================================================
+   SOLAR CURRENT CALCULATION
 
-/*
-  Verified demo current range:
-  1.00 A → 1.10 A
+   Demo current range:
+   1.000 A → 1.100 A
 
-  Solar voltage range:
-  0–5 V     → 1.000 A
-  >5–10 V   → 1.025 A
-  >10–15 V  → 1.050 A
-  >15–20 V  → 1.075 A
-  >20–25 V  → 1.100 A
+   Voltage ranges:
+   0–5 V       → 1.000 A
+   >5–10 V     → 1.025 A
+   >10–15 V    → 1.050 A
+   >15–20 V    → 1.075 A
+   >20 V       → 1.100 A
 
-  NOTE:
-  Current is an assumed/demo value because the present hardware
-  sends solar voltage but does not send an actual current reading.
-*/
+   Current is calculated from the live solar voltage.
+========================================================= */
 
 function getSolarCurrent(voltage) {
   const v = Number(voltage) || 0;
@@ -157,50 +162,57 @@ function getSolarCurrent(voltage) {
   return 1.100;
 }
 
+/* =========================================================
+   LIVE SOLAR CALCULATION
+========================================================= */
+
 function calculateSolarData(solarVoltage, backendSolar) {
   const voltage = Number(solarVoltage) || 0;
 
   const current = getSolarCurrent(voltage);
 
-  // Power in watts
+  /* Power = Voltage × Current */
   const powerW = voltage * current;
 
-  // Power in kW
+  /* Convert W → kW */
   const powerKW = powerW / 1000;
 
-  // 12 hours operating time
+  /*
+    Demo operating time:
+    12 hours
+  */
   const energyWh = powerW * 12;
 
-  // Energy in kWh
+  /* Convert Wh → kWh */
   const energyKWh = energyWh / 1000;
 
   /*
-    For demo display, use the current calculated energy as
-    today's solar energy.
-
-    Backend weekly/monthly values are retained when available.
+    Keep backend weekly/monthly values.
   */
-  const backendWeek = Number(
-    backendSolar?.energy_week
-  ) || 0;
+  const backendWeek =
+    Number(backendSolar?.energy_week) || 0;
 
-  const backendMonth = Number(
-    backendSolar?.energy_month
-  ) || 0;
+  const backendMonth =
+    Number(backendSolar?.energy_month) || 0;
 
   /*
-    Peak power should never be lower than the current calculated
-    power. Backend peak is used when available.
+    Peak power:
+    use whichever is higher:
+    current calculated power
+    OR backend stored peak
   */
   const backendPeakW =
     (Number(backendSolar?.peak_power) || 0) * 1000;
 
-  const peakW = Math.max(powerW, backendPeakW);
+  const peakW = Math.max(
+    powerW,
+    backendPeakW
+  );
 
   /*
-    Efficiency:
-    Since actual solar irradiance/input power is not available,
-    this is kept as the backend/demo efficiency value.
+    Efficiency remains the configured/demo
+    backend value because actual solar input
+    irradiance is not being measured.
   */
   const efficiency =
     Number(backendSolar?.efficiency) || 0;
@@ -208,29 +220,38 @@ function calculateSolarData(solarVoltage, backendSolar) {
   return {
     ...backendSolar,
 
-    solar_voltage: Number(voltage.toFixed(2)),
+    solar_voltage:
+      Number(voltage.toFixed(2)),
 
-    solar_current: Number(current.toFixed(3)),
+    solar_current:
+      Number(current.toFixed(3)),
 
-    power_watts: Number(powerW.toFixed(3)),
+    power_watts:
+      Number(powerW.toFixed(3)),
 
-    power_output: Number(powerKW.toFixed(4)),
+    power_output:
+      Number(powerKW.toFixed(4)),
 
-    energy_today: Number(energyKWh.toFixed(4)),
+    energy_today:
+      Number(energyKWh.toFixed(4)),
 
-    energy_week: Number(backendWeek.toFixed(2)),
+    energy_week:
+      Number(backendWeek.toFixed(2)),
 
-    energy_month: Number(backendMonth.toFixed(2)),
+    energy_month:
+      Number(backendMonth.toFixed(2)),
 
-    peak_power: Number((peakW / 1000).toFixed(4)),
+    peak_power:
+      Number((peakW / 1000).toFixed(4)),
 
-    efficiency: Number(efficiency.toFixed(1)),
+    efficiency:
+      Number(efficiency.toFixed(1)),
   };
 }
 
-/* ─────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────── */
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
 
 export default function EnergyMonitoring() {
   const [sources, setSources] = useState([]);
@@ -238,9 +259,10 @@ export default function EnergyMonitoring() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  /* ─────────────────────────────────────────
-     FETCH LIVE DATA
-  ───────────────────────────────────────── */
+  /* =======================================================
+     LIVE API FETCH
+     Every 5 seconds
+  ======================================================= */
 
   useEffect(() => {
     let cancelled = false;
@@ -272,11 +294,10 @@ export default function EnergyMonitoring() {
 
     fetchAll();
 
-    /*
-      Refresh every 5 seconds so the dashboard updates
-      automatically without manual page refresh.
-    */
-    const interval = setInterval(fetchAll, 5000);
+    const interval = setInterval(
+      fetchAll,
+      5000
+    );
 
     return () => {
       cancelled = true;
@@ -284,64 +305,78 @@ export default function EnergyMonitoring() {
     };
   }, []);
 
-  /* ─────────────────────────────────────────
-     RAW BACKEND SOURCES
-  ───────────────────────────────────────── */
+  /* =======================================================
+     BACKEND SOURCES
+  ======================================================= */
 
   const backendSolar =
-    sources.find((s) => s.source === 'Solar') ||
-    DEFAULT_SOURCE;
+    sources.find(
+      (s) => s.source === 'Solar'
+    ) || DEFAULT_SOURCE;
 
   const footstep =
-    sources.find((s) => s.source === 'Footstep') ||
-    DEFAULT_SOURCE;
+    sources.find(
+      (s) => s.source === 'Footstep'
+    ) || DEFAULT_SOURCE;
 
-  /* ─────────────────────────────────────────
-     LIVE SOLAR CALCULATION
-  ───────────────────────────────────────── */
+  /* =======================================================
+     LIVE SOLAR DATA
+  ======================================================= */
 
   const solar = calculateSolarData(
     backendSolar.solar_voltage,
     backendSolar
   );
 
-  /* ─────────────────────────────────────────
+  /* =======================================================
      TOTAL ENERGY
-  ───────────────────────────────────────── */
+  ======================================================= */
 
-  const totalToday = +(
-    Number(solar.energy_today) +
-    Number(footstep.energy_today)
-  ).toFixed(4);
+  const totalToday = Number(
+    (
+      Number(solar.energy_today) +
+      Number(footstep.energy_today)
+    ).toFixed(4)
+  );
 
-  const totalWeek = +(
-    Number(solar.energy_week) +
-    Number(footstep.energy_week)
-  ).toFixed(2);
+  const totalWeek = Number(
+    (
+      Number(solar.energy_week) +
+      Number(footstep.energy_week)
+    ).toFixed(2)
+  );
 
-  const totalMonth = +(
-    Number(solar.energy_month) +
-    Number(footstep.energy_month)
-  ).toFixed(2);
+  const totalMonth = Number(
+    (
+      Number(solar.energy_month) +
+      Number(footstep.energy_month)
+    ).toFixed(2)
+  );
 
-  /* ─────────────────────────────────────────
+  /* =======================================================
      SOURCE PERCENTAGES
-  ───────────────────────────────────────── */
+  ======================================================= */
 
   const solarPct =
     totalToday > 0
-      ? +(
-          (Number(solar.energy_today) / totalToday) *
-          100
-        ).toFixed(1)
+      ? Number(
+          (
+            (Number(solar.energy_today) /
+              totalToday) *
+            100
+          ).toFixed(1)
+        )
       : 0;
 
   const footPct =
     totalToday > 0
-      ? +(
-          (Number(footstep.energy_today) / totalToday) *
-          100
-        ).toFixed(1)
+      ? Number(
+          (
+            (Number(footstep.energy_today) /
+              totalToday) *
+            100
+          ).toFixed(1)
+        )
       : 0;
 
   const SOURCE_PIE = [
@@ -355,109 +390,139 @@ export default function EnergyMonitoring() {
     },
   ];
 
-  /* ─────────────────────────────────────────
-     HISTORY CHART DATA
-  ───────────────────────────────────────── */
+  /* =======================================================
+     HISTORY DATA
+  ======================================================= */
 
   const historyByDate = {};
 
-  history.forEach(({ source, energy, date }) => {
-    if (!historyByDate[date]) {
-      historyByDate[date] = {
-        day: date.slice(5),
-        solar: 0,
-        footstep: 0,
-      };
+  history.forEach(
+    ({ source, energy, date }) => {
+      if (!historyByDate[date]) {
+        historyByDate[date] = {
+          day: date.slice(5),
+          solar: 0,
+          footstep: 0,
+        };
+      }
+
+      if (source === 'Solar') {
+        historyByDate[date].solar +=
+          Number(energy) || 0;
+      }
+
+      if (source === 'Footstep') {
+        historyByDate[date].footstep +=
+          Number(energy) || 0;
+      }
     }
-
-    if (source === 'Solar') {
-      historyByDate[date].solar += Number(energy) || 0;
-    }
-
-    if (source === 'Footstep') {
-      historyByDate[date].footstep += Number(energy) || 0;
-    }
-  });
-
-  let weeklyBar = Object.values(historyByDate).slice(-7);
-
-  /*
-    Add current live solar calculation to today's point.
-
-    This makes the chart respond to the live voltage without
-    requiring a page refresh.
-  */
-  const today = new Date().toISOString().slice(0, 10);
-  const todayLabel = today.slice(5);
-
-  const todayIndex = weeklyBar.findIndex(
-    (item) => item.day === todayLabel
   );
+
+  let weeklyBar =
+    Object.values(historyByDate).slice(-7);
+
+  /* =======================================================
+     ADD LIVE TODAY VALUE
+  ======================================================= */
+
+  const today =
+    new Date()
+      .toISOString()
+      .slice(0, 10);
+
+  const todayLabel =
+    today.slice(5);
+
+  const todayIndex =
+    weeklyBar.findIndex(
+      (item) =>
+        item.day === todayLabel
+    );
 
   if (todayIndex >= 0) {
     weeklyBar[todayIndex] = {
       ...weeklyBar[todayIndex],
-      solar: Number(solar.energy_today),
-      footstep: Number(footstep.energy_today),
+
+      solar:
+        Number(solar.energy_today),
+
+      footstep:
+        Number(footstep.energy_today),
     };
   } else {
     weeklyBar = [
       ...weeklyBar,
       {
         day: todayLabel,
-        solar: Number(solar.energy_today),
-        footstep: Number(footstep.energy_today),
+
+        solar:
+          Number(solar.energy_today),
+
+        footstep:
+          Number(footstep.energy_today),
       },
     ].slice(-7);
   }
 
-  /* ─────────────────────────────────────────
+  /* =======================================================
      DAILY TREND
-  ───────────────────────────────────────── */
+  ======================================================= */
 
-  const dailyTrend = weeklyBar.map((item) => ({
-    ...item,
-    total: Number(
-      (
-        Number(item.solar) +
-        Number(item.footstep)
-      ).toFixed(4)
-    ),
-  }));
+  const dailyTrend =
+    weeklyBar.map((item) => ({
+      ...item,
 
-  /* ─────────────────────────────────────────
+      total: Number(
+        (
+          Number(item.solar) +
+          Number(item.footstep)
+        ).toFixed(4)
+      ),
+    }));
+
+  /* =======================================================
      CO2 + COST
-  ───────────────────────────────────────── */
+  ======================================================= */
 
   const co2Saved =
-    Number((totalToday * 0.7).toFixed(2));
+    Number(
+      (totalToday * 0.7).toFixed(2)
+    );
 
   const costSaved =
-    Number((totalToday * 7.5).toFixed(2));
+    Number(
+      (totalToday * 7.5).toFixed(2)
+    );
 
-  /* ─────────────────────────────────────────
-     RETURN UI
-  ───────────────────────────────────────── */
+  /* =======================================================
+     UI
+  ======================================================= */
 
   return (
     <div className="em-root">
 
-      {/* ══ PAGE HEADER ══ */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
 
       <div className="em-page-header">
 
         <div className="em-page-header__left">
 
           <h1 className="em-page-title">
+
             <span className="em-page-title__icon">
               ☀️
             </span>
+
             Energy Monitoring
+
           </h1>
 
           <p className="em-page-desc">
-            Monitor renewable energy generation from solar panels
-            and footstep electricity generation.
+            Monitor renewable energy generation
+            from solar panels and footstep
+            electricity generation.
           </p>
 
         </div>
@@ -465,11 +530,17 @@ export default function EnergyMonitoring() {
         <div className="em-page-header__right">
 
           <div className="em-live-chip">
+
             <span className="em-live-dot" />
-            {loading ? 'Loading…' : 'System Online'}
+
+            {loading
+              ? 'Loading…'
+              : 'System Online'}
+
           </div>
 
           <div className="em-header-badge">
+
             <span className="em-header-badge__label">
               Live Update
             </span>
@@ -477,9 +548,11 @@ export default function EnergyMonitoring() {
             <span className="em-header-badge__value">
               Every 5 sec
             </span>
+
           </div>
 
           <div className="em-header-badge">
+
             <span className="em-header-badge__label">
               Data Source
             </span>
@@ -487,6 +560,7 @@ export default function EnergyMonitoring() {
             <span className="em-header-badge__value">
               Live API
             </span>
+
           </div>
 
         </div>
@@ -525,7 +599,9 @@ export default function EnergyMonitoring() {
         </div>
       )}
 
-      {/* ══ SECTION 1 ══ */}
+      {/* =================================================
+          SECTION 1 — SOURCE MONITORING
+      ================================================= */}
 
       <section className="em-section">
 
@@ -537,7 +613,9 @@ export default function EnergyMonitoring() {
 
         <div className="em-source-grid">
 
-          {/* ══ SOLAR CARD ══ */}
+          {/* =================================================
+              SOLAR
+          ================================================= */}
 
           <div className="em-source-card em-source-card--solar">
 
@@ -567,7 +645,7 @@ export default function EnergyMonitoring() {
 
             </div>
 
-            {/* CURRENT POWER */}
+            {/* POWER */}
 
             <div className="em-source-card__primary">
 
@@ -596,9 +674,13 @@ export default function EnergyMonitoring() {
               <div className="em-source-stat">
 
                 <span className="em-source-stat__val">
+
                   {solar.energy_today.toFixed(4)}
+
                   {' '}
+
                   <small>kWh</small>
+
                 </span>
 
                 <span className="em-source-stat__lbl">
@@ -610,9 +692,13 @@ export default function EnergyMonitoring() {
               <div className="em-source-stat em-source-stat--sep">
 
                 <span className="em-source-stat__val">
+
                   {solar.energy_week.toFixed(2)}
+
                   {' '}
+
                   <small>kWh</small>
+
                 </span>
 
                 <span className="em-source-stat__lbl">
@@ -624,9 +710,13 @@ export default function EnergyMonitoring() {
               <div className="em-source-stat em-source-stat--sep">
 
                 <span className="em-source-stat__val">
+
                   {solar.energy_month.toFixed(2)}
+
                   {' '}
+
                   <small>kWh</small>
+
                 </span>
 
                 <span className="em-source-stat__lbl">
@@ -639,28 +729,50 @@ export default function EnergyMonitoring() {
 
             <div className="em-source-card__divider" />
 
-            {/* SOLAR META */}
+            {/* LIVE SOLAR VALUES */}
 
             <MetaRow
               items={[
                 {
                   label: 'Solar Voltage',
-                  value: `${solar.solar_voltage.toFixed(2)} V`,
+                  value:
+                    `${solar.solar_voltage.toFixed(2)} V`,
                 },
                 {
                   label: 'Solar Current',
-                  value: `${solar.solar_current.toFixed(3)} A`,
+                  value:
+                    `${solar.solar_current.toFixed(3)} A`,
                 },
                 {
+                  label: 'Solar Power',
+                  value:
+                    `${solar.power_watts.toFixed(3)} W`,
+                },
+              ]}
+            />
+
+            <div className="em-source-card__divider" />
+
+            <MetaRow
+              items={[
+                {
                   label: 'Peak Today',
-                  value: `${solar.peak_power.toFixed(4)} kW`,
+                  value:
+                    `${solar.peak_power.toFixed(4)} kW`,
+                },
+                {
+                  label: 'Panel Efficiency',
+                  value:
+                    `${solar.efficiency}%`,
                 },
               ]}
             />
 
           </div>
 
-          {/* ══ FOOTSTEP CARD — UNCHANGED ══ */}
+          {/* =================================================
+              FOOTSTEP — UNCHANGED
+          ================================================= */}
 
           <div className="em-source-card em-source-card--foot">
 
@@ -762,11 +874,13 @@ export default function EnergyMonitoring() {
               items={[
                 {
                   label: 'Tile Efficiency',
-                  value: `${footstep.efficiency}%`,
+                  value:
+                    `${footstep.efficiency}%`,
                 },
                 {
                   label: 'Peak Today',
-                  value: `${footstep.peak_power} kW`,
+                  value:
+                    `${footstep.peak_power} kW`,
                 },
               ]}
             />
@@ -776,7 +890,9 @@ export default function EnergyMonitoring() {
         </div>
       </section>
 
-      {/* ══ SECTION 2 ══ */}
+      {/* =================================================
+          SECTION 2 — TOTAL RENEWABLE ENERGY
+      ================================================= */}
 
       <section className="em-section">
 
@@ -801,11 +917,13 @@ export default function EnergyMonitoring() {
               </div>
 
               <div className="em-total-card__value">
+
                 {totalToday.toFixed(4)}
 
                 <span className="em-total-card__unit">
                   {' '}kWh
                 </span>
+
               </div>
 
               <StatusPill color="green">
@@ -894,7 +1012,9 @@ export default function EnergyMonitoring() {
         </div>
       </section>
 
-      {/* ══ SECTION 3 ══ */}
+      {/* =================================================
+          SECTION 3 — ENERGY GENERATION CHARTS
+      ================================================= */}
 
       <section className="em-section">
 
@@ -913,7 +1033,10 @@ export default function EnergyMonitoring() {
             subtitle="Solar & Footstep — live daily values"
           >
 
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer
+              width="100%"
+              height={260}
+            >
 
               <BarChart
                 data={
@@ -950,7 +1073,9 @@ export default function EnergyMonitoring() {
                   unit=" kWh"
                 />
 
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip
+                  content={<CustomTooltip />}
+                />
 
                 <Legend
                   wrapperStyle={{ fontSize: 12 }}
@@ -976,14 +1101,17 @@ export default function EnergyMonitoring() {
 
           </ChartCard>
 
-          {/* PIE CHART */}
+          {/* PIE */}
 
           <ChartCard
             title="Energy Source Comparison"
             subtitle="Percentage contribution of each source today"
           >
 
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer
+              width="100%"
+              height={260}
+            >
 
               <PieChart>
 
@@ -995,29 +1123,46 @@ export default function EnergyMonitoring() {
                   outerRadius={100}
                   paddingAngle={4}
                   dataKey="value"
-                  label={({ value }) => `${value}%`}
+                  label={({ value }) =>
+                    `${value}%`
+                  }
                   labelLine={false}
                 >
 
-                  {SOURCE_PIE.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={PIE_COLORS[i]}
-                    />
-                  ))}
+                  {SOURCE_PIE.map(
+                    (_, i) => (
+                      <Cell
+                        key={i}
+                        fill={PIE_COLORS[i]}
+                      />
+                    )
+                  )}
 
                 </Pie>
 
                 <Tooltip
-                  formatter={(v) => `${v}%`}
+                  formatter={(v) =>
+                    `${v}%`
+                  }
                 />
 
                 <Legend
-                  formatter={(value, entry) => (
-                    <span style={{ fontSize: 12 }}>
+                  formatter={(
+                    value,
+                    entry
+                  ) => (
+                    <span
+                      style={{
+                        fontSize: 12,
+                      }}
+                    >
                       {value} —{' '}
                       <strong>
-                        {entry.payload.value}%
+                        {
+                          entry
+                            .payload
+                            .value
+                        }%
                       </strong>
                     </span>
                   )}
@@ -1032,7 +1177,9 @@ export default function EnergyMonitoring() {
         </div>
       </section>
 
-      {/* ══ SECTION 4 ══ */}
+      {/* =================================================
+          SECTION 4 — DAILY TREND
+      ================================================= */}
 
       <section className="em-section">
 
@@ -1047,7 +1194,10 @@ export default function EnergyMonitoring() {
           subtitle="Solar, Footstep & Total energy"
         >
 
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer
+            width="100%"
+            height={260}
+          >
 
             <LineChart
               data={
@@ -1084,7 +1234,9 @@ export default function EnergyMonitoring() {
                 unit=" kWh"
               />
 
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip
+                content={<CustomTooltip />}
+              />
 
               <Legend
                 wrapperStyle={{ fontSize: 12 }}
@@ -1125,7 +1277,9 @@ export default function EnergyMonitoring() {
 
       </section>
 
-      {/* ══ SECTION 5 ══ */}
+      {/* =================================================
+          SECTION 5 — ENERGY STATISTICS
+      ================================================= */}
 
       <section className="em-section">
 
@@ -1212,7 +1366,9 @@ export default function EnergyMonitoring() {
         </div>
       </section>
 
-      {/* ══ SECTION 6 ══ */}
+      {/* =================================================
+          SECTION 6 — SOURCE DETAILS
+      ================================================= */}
 
       <section className="em-section">
 
@@ -1231,6 +1387,7 @@ export default function EnergyMonitoring() {
               <thead>
 
                 <tr>
+
                   {[
                     'Source',
                     'Current Output',
@@ -1240,8 +1397,11 @@ export default function EnergyMonitoring() {
                     'Efficiency',
                     'Status',
                   ].map((h) => (
-                    <th key={h}>{h}</th>
+                    <th key={h}>
+                      {h}
+                    </th>
                   ))}
+
                 </tr>
 
               </thead>
@@ -1283,8 +1443,10 @@ export default function EnergyMonitoring() {
                       <div
                         className="em-eff-bar__fill"
                         style={{
-                          width: `${solar.efficiency}%`,
-                          background: '#22c55e',
+                          width:
+                            `${solar.efficiency}%`,
+                          background:
+                            '#22c55e',
                         }}
                       />
 
@@ -1297,9 +1459,11 @@ export default function EnergyMonitoring() {
                   </td>
 
                   <td>
+
                     <StatusPill color="yellow">
                       Generating
                     </StatusPill>
+
                   </td>
 
                 </tr>
@@ -1339,8 +1503,10 @@ export default function EnergyMonitoring() {
                       <div
                         className="em-eff-bar__fill"
                         style={{
-                          width: `${footstep.efficiency}%`,
-                          background: '#3b82f6',
+                          width:
+                            `${footstep.efficiency}%`,
+                          background:
+                            '#3b82f6',
                         }}
                       />
 
@@ -1353,9 +1519,11 @@ export default function EnergyMonitoring() {
                   </td>
 
                   <td>
+
                     <StatusPill color="blue">
                       Generating
                     </StatusPill>
+
                   </td>
 
                 </tr>
@@ -1365,36 +1533,52 @@ export default function EnergyMonitoring() {
                 <tr className="em-table-total-row">
 
                   <td>
+
                     <span className="em-table-source">
                       ⚡ Total
                     </span>
+
                   </td>
 
                   <td>
+
                     <strong>
+
                       {(
                         solar.power_output +
-                        Number(footstep.power_output)
-                      ).toFixed(4)} kW
+                        Number(
+                          footstep.power_output
+                        )
+                      ).toFixed(4)}
+
+                      {' '}kW
+
                     </strong>
+
                   </td>
 
                   <td>
+
                     <strong>
                       {totalToday.toFixed(4)} kWh
                     </strong>
+
                   </td>
 
                   <td>
+
                     <strong>
                       {totalWeek.toFixed(2)} kWh
                     </strong>
+
                   </td>
 
                   <td>
+
                     <strong>
                       {totalMonth.toFixed(2)} kWh
                     </strong>
+
                   </td>
 
                   <td>
@@ -1402,9 +1586,11 @@ export default function EnergyMonitoring() {
                   </td>
 
                   <td>
+
                     <StatusPill color="green">
                       Active
                     </StatusPill>
+
                   </td>
 
                 </tr>
@@ -1414,6 +1600,7 @@ export default function EnergyMonitoring() {
             </table>
 
           </div>
+
         </div>
       </section>
 
